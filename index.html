@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Chinese Tap Reader</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #181b22;
+    --panel-hi: #232834;
+    --text: #e8ecf3;
+    --muted: #8a93a6;
+    --accent: #ffb703;
+    --accent-2: #4cc9f0;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid #252a36;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 2;
+  }
+  h1 {
+    margin: 0 0 6px 0;
+    font-size: 18px;
+    letter-spacing: 0.3px;
+  }
+  .sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .controls label {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .controls input[type="range"] {
+    width: 140px;
+  }
+  .btn {
+    background: var(--panel-hi);
+    color: var(--text);
+    border: 1px solid #2b3142;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .btn:active { background: #2a3040; }
+  .btn.primary {
+    background: var(--accent);
+    color: #111;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  main {
+    padding: 12px 16px 180px;
+    flex: 1;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  @media (min-width: 640px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+  }
+  .section {
+    background: var(--panel);
+    border: 1px solid #252a36;
+    border-radius: 10px;
+    padding: 10px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .section.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(255, 183, 3, 0.25);
+  }
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 26px;
+    border-radius: 13px;
+    background: var(--panel-hi);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 0 8px;
+  }
+  .section.active .badge {
+    background: var(--accent);
+    color: #111;
+  }
+  textarea {
+    width: 100%;
+    min-height: 72px;
+    resize: vertical;
+    background: #0c0f14;
+    color: var(--text);
+    border: 1px solid #2a3142;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 16px;
+    line-height: 1.5;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  textarea:focus {
+    outline: none;
+    border-color: var(--accent-2);
+  }
+  .row-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .mini {
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
+  .tap-overlay {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: linear-gradient(180deg, rgba(15,17,21,0) 0%, rgba(15,17,21,0.96) 30%);
+    padding: 14px 16px 16px;
+    z-index: 3;
+    border-top: 1px solid #252a36;
+  }
+  .tap-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .tap-count {
+    font-variant-numeric: tabular-nums;
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--accent);
+    min-width: 54px;
+    text-align: center;
+  }
+  .tap-label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .tap-bar {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .tap-bar .dot {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: #252a36;
+  }
+  .tap-bar .dot.on { background: var(--accent); }
+  .tap-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+    text-align: center;
+  }
+  .status {
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+  .tap-area {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+  }
+  /* keep inputs and controls above the invisible tap area */
+  header, main, .tap-overlay { position: relative; z-index: 2; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Chinese Tap Reader</h1>
+    <div class="sub">Paste text into 8 sections. Tap 1–8 times in a row to play that section, slowly.</div>
+    <div class="controls">
+      <button id="toggleTap" class="btn primary">Start tap listener</button>
+      <label>Rate <input id="rate" type="range" min="0.3" max="1.0" step="0.05" value="0.6" /></label>
+      <span id="rateVal" class="sub">0.60x</span>
+      <label>Window <input id="window" type="range" min="250" max="1500" step="50" value="600" /></label>
+      <span id="windowVal" class="sub">600 ms</span>
+      <span id="voiceStatus" class="status">voice: loading…</span>
+    </div>
+  </header>
+
+  <main>
+    <div id="grid" class="grid"></div>
+  </main>
+
+  <div class="tap-area" id="tapArea" aria-hidden="true"></div>
+
+  <div class="tap-overlay">
+    <div class="tap-row">
+      <div>
+        <div class="tap-count" id="tapCount">0</div>
+        <div class="tap-label">taps in a row</div>
+      </div>
+      <div style="flex:1">
+        <div class="tap-bar" id="tapBar"></div>
+        <div class="tap-hint" id="tapHint">Tap anywhere. Pause to trigger playback.</div>
+      </div>
+      <button id="stopBtn" class="btn">Stop</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const SECTION_COUNT = 8;
+  const grid = document.getElementById('grid');
+  const tapCountEl = document.getElementById('tapCount');
+  const tapBar = document.getElementById('tapBar');
+  const tapHint = document.getElementById('tapHint');
+  const toggleBtn = document.getElementById('toggleTap');
+  const stopBtn = document.getElementById('stopBtn');
+  const rateInput = document.getElementById('rate');
+  const rateVal = document.getElementById('rateVal');
+  const windowInput = document.getElementById('window');
+  const windowVal = document.getElementById('windowVal');
+  const voiceStatus = document.getElementById('voiceStatus');
+  const tapArea = document.getElementById('tapArea');
+
+  const STORAGE_KEY = 'chinese-tap-reader-v1';
+  const saved = (() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+    catch { return {}; }
+  })();
+
+  const textareas = [];
+  const sections = [];
+  for (let i = 1; i <= SECTION_COUNT; i++) {
+    const sec = document.createElement('div');
+    sec.className = 'section';
+    sec.dataset.index = String(i);
+    sec.innerHTML = `
+      <div class="section-head">
+        <span class="badge">${i}</span>
+        <div class="row-actions">
+          <button class="btn mini" data-act="play">Play</button>
+          <button class="btn mini" data-act="clear">Clear</button>
+        </div>
+      </div>
+      <textarea placeholder="Paste Chinese text for section ${i} here…" spellcheck="false"></textarea>
+    `;
+    grid.appendChild(sec);
+    const ta = sec.querySelector('textarea');
+    ta.value = (saved.texts && saved.texts[i - 1]) || '';
+    ta.addEventListener('input', saveTexts);
+    sec.querySelector('[data-act="play"]').addEventListener('click', () => playSection(i));
+    sec.querySelector('[data-act="clear"]').addEventListener('click', () => { ta.value = ''; saveTexts(); });
+    textareas.push(ta);
+    sections.push(sec);
+  }
+
+  for (let i = 0; i < SECTION_COUNT; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    tapBar.appendChild(dot);
+  }
+  const dots = tapBar.querySelectorAll('.dot');
+
+  function saveTexts() {
+    const texts = textareas.map(t => t.value);
+    const data = Object.assign({}, saved, { texts });
+    Object.assign(saved, data);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+  }
+
+  if (saved.rate) rateInput.value = String(saved.rate);
+  if (saved.win)  windowInput.value = String(saved.win);
+  rateVal.textContent = Number(rateInput.value).toFixed(2) + 'x';
+  windowVal.textContent = windowInput.value + ' ms';
+
+  rateInput.addEventListener('input', () => {
+    rateVal.textContent = Number(rateInput.value).toFixed(2) + 'x';
+    saved.rate = Number(rateInput.value);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); } catch {}
+  });
+  windowInput.addEventListener('input', () => {
+    windowVal.textContent = windowInput.value + ' ms';
+    saved.win = Number(windowInput.value);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); } catch {}
+  });
+
+  // ---- Voice selection ----
+  let chineseVoice = null;
+  function pickVoice() {
+    const voices = speechSynthesis.getVoices();
+    if (!voices.length) return;
+    const zh = voices.filter(v => /^zh(-|_)?/i.test(v.lang) || /chinese|mandarin/i.test(v.name));
+    const preferred =
+      zh.find(v => /zh-CN|zh_CN/i.test(v.lang)) ||
+      zh.find(v => /mandarin/i.test(v.name)) ||
+      zh[0] ||
+      null;
+    chineseVoice = preferred;
+    voiceStatus.textContent = chineseVoice
+      ? 'voice: ' + chineseVoice.name + ' (' + chineseVoice.lang + ')'
+      : 'voice: no zh voice found';
+  }
+  if ('speechSynthesis' in window) {
+    pickVoice();
+    speechSynthesis.onvoiceschanged = pickVoice;
+  } else {
+    voiceStatus.textContent = 'speechSynthesis not supported';
+  }
+
+  // ---- TTS ----
+  function playSection(index) {
+    const text = (textareas[index - 1].value || '').trim();
+    highlightActive(index);
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    if (!text) {
+      tapHint.textContent = 'Section ' + index + ' is empty.';
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    if (chineseVoice) u.voice = chineseVoice;
+    u.lang = chineseVoice ? chineseVoice.lang : 'zh-CN';
+    u.rate = Number(rateInput.value);
+    u.pitch = 1;
+    u.volume = 1;
+    u.onstart = () => { tapHint.textContent = 'Playing section ' + index + '…'; };
+    u.onend = () => { tapHint.textContent = 'Done. Tap to play again.'; };
+    u.onerror = (e) => { tapHint.textContent = 'TTS error: ' + (e.error || 'unknown'); };
+    speechSynthesis.speak(u);
+  }
+
+  function highlightActive(index) {
+    sections.forEach(s => s.classList.remove('active'));
+    const sec = sections[index - 1];
+    if (sec) sec.classList.add('active');
+  }
+
+  function updateDots(n) {
+    dots.forEach((d, i) => d.classList.toggle('on', i < n));
+  }
+
+  // ---- Tap counter ----
+  let listening = false;
+  let tapCount = 0;
+  let pauseTimer = null;
+
+  function setListening(on) {
+    listening = on;
+    toggleBtn.textContent = on ? 'Pause tap listener' : 'Start tap listener';
+    toggleBtn.classList.toggle('primary', !on);
+    tapArea.style.pointerEvents = on ? 'auto' : 'none';
+    if (!on) {
+      resetCount();
+      tapHint.textContent = 'Listener paused.';
+    } else {
+      tapHint.textContent = 'Tap anywhere. Pause to trigger playback.';
+      // Unlock audio / voice list on a user gesture.
+      try { speechSynthesis.resume(); } catch {}
+    }
+  }
+
+  function resetCount() {
+    tapCount = 0;
+    tapCountEl.textContent = '0';
+    updateDots(0);
+    if (pauseTimer) { clearTimeout(pauseTimer); pauseTimer = null; }
+  }
+
+  function registerTap() {
+    if (!listening) return;
+    // cancel any currently speaking playback on a new tap burst
+    if (tapCount === 0 && 'speechSynthesis' in window) speechSynthesis.cancel();
+    tapCount = Math.min(SECTION_COUNT, tapCount + 1);
+    tapCountEl.textContent = String(tapCount);
+    updateDots(tapCount);
+    highlightActive(tapCount);
+
+    if (pauseTimer) clearTimeout(pauseTimer);
+    const win = Number(windowInput.value);
+    pauseTimer = setTimeout(() => {
+      const n = tapCount;
+      resetCount();
+      if (n >= 1 && n <= SECTION_COUNT) playSection(n);
+    }, win);
+  }
+
+  // Only count taps that hit the dedicated tap-area overlay,
+  // so textareas/buttons keep working normally.
+  tapArea.addEventListener('pointerdown', (e) => {
+    // ignore multi-touch extra fingers; count the primary only
+    if (e.isPrimary === false) return;
+    registerTap();
+  }, { passive: true });
+
+  // Keyboard shortcut: space also counts as a tap (for desktop testing).
+  window.addEventListener('keydown', (e) => {
+    if (!listening) return;
+    if (e.target && /^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName)) return;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      registerTap();
+    } else if (e.code === 'Escape') {
+      if ('speechSynthesis' in window) speechSynthesis.cancel();
+      resetCount();
+    }
+  });
+
+  toggleBtn.addEventListener('click', () => setListening(!listening));
+  stopBtn.addEventListener('click', () => {
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    resetCount();
+    tapHint.textContent = 'Stopped.';
+  });
+
+  // Keep the speech engine awake on some browsers.
+  setInterval(() => {
+    if ('speechSynthesis' in window && speechSynthesis.speaking) {
+      speechSynthesis.pause();
+      speechSynthesis.resume();
+    }
+  }, 8000);
+
+  // Start disabled so the first user gesture enables audio.
+  setListening(false);
+})();
+</script>
+</body>
+</html>
