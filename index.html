@@ -199,13 +199,7 @@
     color: var(--muted);
     margin-left: auto;
   }
-  .tap-area {
-    position: fixed;
-    inset: 0;
-    z-index: 1;
-  }
-  /* keep inputs and controls above the invisible tap area */
-  header, main, .tap-overlay { position: relative; z-index: 2; }
+  header, main, .tap-overlay { position: relative; }
 </style>
 </head>
 <body>
@@ -225,8 +219,6 @@
   <main>
     <div id="grid" class="grid"></div>
   </main>
-
-  <div class="tap-area" id="tapArea" aria-hidden="true"></div>
 
   <div class="tap-overlay">
     <div class="tap-row">
@@ -256,7 +248,6 @@
   const windowInput = document.getElementById('window');
   const windowVal = document.getElementById('windowVal');
   const voiceStatus = document.getElementById('voiceStatus');
-  const tapArea = document.getElementById('tapArea');
 
   const STORAGE_KEY = 'chinese-tap-reader-v1';
   const saved = (() => {
@@ -384,7 +375,6 @@
     listening = on;
     toggleBtn.textContent = on ? 'Pause tap listener' : 'Start tap listener';
     toggleBtn.classList.toggle('primary', !on);
-    tapArea.style.pointerEvents = on ? 'auto' : 'none';
     if (!on) {
       resetCount();
       tapHint.textContent = 'Listener paused.';
@@ -420,11 +410,17 @@
     }, win);
   }
 
-  // Only count taps that hit the dedicated tap-area overlay,
-  // so textareas/buttons keep working normally.
-  tapArea.addEventListener('pointerdown', (e) => {
-    // ignore multi-touch extra fingers; count the primary only
+  // Listen for taps anywhere on the page; skip when the user is
+  // interacting with form controls so they can still type/click.
+  function isInteractive(el) {
+    if (!el) return false;
+    if (el.closest && el.closest('textarea, input, select, button, label, a')) return true;
+    return false;
+  }
+  document.addEventListener('pointerdown', (e) => {
+    if (!listening) return;
     if (e.isPrimary === false) return;
+    if (isInteractive(e.target)) return;
     registerTap();
   }, { passive: true });
 
